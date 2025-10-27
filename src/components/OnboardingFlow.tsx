@@ -1,4 +1,6 @@
-import { useState } from "react";
+import React, { useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -7,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { ChevronLeft, ChevronRight, User, Target, ChefHat, ShoppingCart } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+const API_BASE_URL = "http://localhost:4000";
 
 export interface UserProfile {
   age: number;
@@ -25,7 +29,12 @@ export interface UserProfile {
   calorieTarget?: number;
 }
 
-const OnboardingFlow = ({ onComplete }: { onComplete: (profile: UserProfile) => void }) => {
+// ✅ onComplete no longer passes the profile, just signals redirect
+const OnboardingFlow = ({ onComplete }: { onComplete: () => void }) => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
   const [step, setStep] = useState(1);
   const [profile, setProfile] = useState<UserProfile>({
     age: 0,
@@ -43,8 +52,6 @@ const OnboardingFlow = ({ onComplete }: { onComplete: (profile: UserProfile) => 
     budget: ""
   });
 
-  const { toast } = useToast();
-
   const steps = [
     { icon: User, title: "Personal Info", description: "Tell us about yourself" },
     { icon: Target, title: "Goals", description: "What do you want to achieve?" },
@@ -53,7 +60,6 @@ const OnboardingFlow = ({ onComplete }: { onComplete: (profile: UserProfile) => 
   ];
 
   const calculateCalories = () => {
-    // Mifflin-St Jeor Equation
     let bmr;
     if (profile.sex === "male") {
       bmr = 10 * profile.weight + 6.25 * profile.height - 5 * profile.age + 5;
@@ -69,32 +75,65 @@ const OnboardingFlow = ({ onComplete }: { onComplete: (profile: UserProfile) => 
       very_active: 1.9
     };
 
-    const tdee = bmr * (activityMultipliers[profile.activityLevel as keyof typeof activityMultipliers] || 1.2);
-    
-    let calorieTarget = tdee;
-    if (profile.goal === "loss") calorieTarget = tdee * 0.8;
-    else if (profile.goal === "gain") calorieTarget = tdee * 1.2;
+    let tdee = bmr * (activityMultipliers[profile.activityLevel as keyof typeof activityMultipliers] || 1.2);
 
-    return Math.round(calorieTarget);
+    if (profile.goal === "loss") tdee *= 0.8;
+    else if (profile.goal === "gain") tdee *= 1.2;
+
+    return Math.round(tdee);
   };
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (step < 4) {
       setStep(step + 1);
     } else {
+      // final profile
       const finalProfile = { ...profile, calorieTarget: calculateCalories() };
-      onComplete(finalProfile);
-      toast({
-        title: "Profile Complete!",
-        description: "Your personalized nutrition plan is ready.",
-      });
+
+      try {
+        const {
+          data: { session },
+          error: sessionError,
+        } = await supabase.auth.getSession();
+        if (sessionError) throw sessionError;
+        if (!session?.access_token) throw new Error("User is not authenticated");
+
+        const res = await fetch(`${API_BASE_URL}/api/profile`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify(finalProfile),
+        });
+
+        if (!res.ok) {
+          const errorText = await res.text();
+          throw new Error(errorText);
+        }
+
+        toast({
+          title: "Profile Complete!",
+          description: "Your personalized nutrition plan is ready.",
+        });
+
+        // ✅ Call onComplete to redirect user to dashboard
+        onComplete();
+      } catch (error) {
+        console.error("Error saving profile:", error);
+        toast({
+          title: "Error",
+          description: "Failed to save your profile. Please try again.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
   const handleAllergyChange = (allergy: string, checked: boolean) => {
     setProfile(prev => ({
       ...prev,
-      allergies: checked 
+      allergies: checked
         ? [...prev.allergies, allergy]
         : prev.allergies.filter(a => a !== allergy)
     }));
@@ -103,6 +142,7 @@ const OnboardingFlow = ({ onComplete }: { onComplete: (profile: UserProfile) => 
   const renderStep = () => {
     switch (step) {
       case 1:
+        // Step 1: Personal Info
         return (
           <div className="space-y-6">
             <div className="grid grid-cols-2 gap-4">
@@ -112,13 +152,13 @@ const OnboardingFlow = ({ onComplete }: { onComplete: (profile: UserProfile) => 
                   id="age"
                   type="number"
                   value={profile.age || ''}
-                  onChange={(e) => setProfile({...profile, age: parseInt(e.target.value) || 0})}
+                  onChange={(e) => setProfile({ ...profile, age: parseInt(e.target.value) || 0 })}
                   placeholder="25"
                 />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="sex">Sex</Label>
-                <Select onValueChange={(value) => setProfile({...profile, sex: value})}>
+                <Select onValueChange={(value) => setProfile({ ...profile, sex: value })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
@@ -129,6 +169,7 @@ const OnboardingFlow = ({ onComplete }: { onComplete: (profile: UserProfile) => 
                 </Select>
               </div>
             </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="height">Height (cm)</Label>
@@ -136,7 +177,7 @@ const OnboardingFlow = ({ onComplete }: { onComplete: (profile: UserProfile) => 
                   id="height"
                   type="number"
                   value={profile.height || ''}
-                  onChange={(e) => setProfile({...profile, height: parseInt(e.target.value) || 0})}
+                  onChange={(e) => setProfile({ ...profile, height: parseInt(e.target.value) || 0 })}
                   placeholder="175"
                 />
               </div>
@@ -146,22 +187,23 @@ const OnboardingFlow = ({ onComplete }: { onComplete: (profile: UserProfile) => 
                   id="weight"
                   type="number"
                   value={profile.weight || ''}
-                  onChange={(e) => setProfile({...profile, weight: parseInt(e.target.value) || 0})}
+                  onChange={(e) => setProfile({ ...profile, weight: parseInt(e.target.value) || 0 })}
                   placeholder="70"
                 />
               </div>
             </div>
+
             <div className="space-y-2">
               <Label>Activity Level</Label>
-              <Select onValueChange={(value) => setProfile({...profile, activityLevel: value})}>
+              <Select onValueChange={(value) => setProfile({ ...profile, activityLevel: value })}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select your activity level" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="sedentary">Sedentary (desk job, no exercise)</SelectItem>
-                  <SelectItem value="light">Light (light exercise 1-3 days/week)</SelectItem>
-                  <SelectItem value="moderate">Moderate (moderate exercise 3-5 days/week)</SelectItem>
-                  <SelectItem value="active">Active (hard exercise 6-7 days/week)</SelectItem>
+                  <SelectItem value="light">Light (1-3 days/week)</SelectItem>
+                  <SelectItem value="moderate">Moderate (3-5 days/week)</SelectItem>
+                  <SelectItem value="active">Active (6-7 days/week)</SelectItem>
                   <SelectItem value="very_active">Very Active (physical job + exercise)</SelectItem>
                 </SelectContent>
               </Select>
@@ -170,11 +212,12 @@ const OnboardingFlow = ({ onComplete }: { onComplete: (profile: UserProfile) => 
         );
 
       case 2:
+        // Step 2: Goals
         return (
           <div className="space-y-6">
             <div className="space-y-2">
               <Label>Primary Goal</Label>
-              <Select onValueChange={(value) => setProfile({...profile, goal: value})}>
+              <Select onValueChange={(value) => setProfile({ ...profile, goal: value })}>
                 <SelectTrigger>
                   <SelectValue placeholder="What's your main goal?" />
                 </SelectTrigger>
@@ -187,7 +230,7 @@ const OnboardingFlow = ({ onComplete }: { onComplete: (profile: UserProfile) => 
             </div>
             <div className="space-y-2">
               <Label>Timeframe</Label>
-              <Select onValueChange={(value) => setProfile({...profile, timeframe: value})}>
+              <Select onValueChange={(value) => setProfile({ ...profile, timeframe: value })}>
                 <SelectTrigger>
                   <SelectValue placeholder="How long do you want to work on this goal?" />
                 </SelectTrigger>
@@ -204,16 +247,17 @@ const OnboardingFlow = ({ onComplete }: { onComplete: (profile: UserProfile) => 
         );
 
       case 3:
+        // Step 3: Preferences
         return (
           <div className="space-y-6">
             <div className="space-y-2">
               <Label>Preferred Cuisine</Label>
-              <Select onValueChange={(value) => setProfile({...profile, cuisine: value})}>
+              <Select onValueChange={(value) => setProfile({ ...profile, cuisine: value })}>
                 <SelectTrigger>
                   <SelectValue placeholder="What cuisine do you enjoy most?" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="mixed">Mixed (Various cuisines)</SelectItem>
+                  <SelectItem value="mixed">Mixed</SelectItem>
                   <SelectItem value="indian">Indian</SelectItem>
                   <SelectItem value="italian">Italian</SelectItem>
                   <SelectItem value="mediterranean">Mediterranean</SelectItem>
@@ -225,7 +269,7 @@ const OnboardingFlow = ({ onComplete }: { onComplete: (profile: UserProfile) => 
             </div>
             <div className="space-y-2">
               <Label>Diet Type</Label>
-              <Select onValueChange={(value) => setProfile({...profile, dietType: value})}>
+              <Select onValueChange={(value) => setProfile({ ...profile, dietType: value })}>
                 <SelectTrigger>
                   <SelectValue placeholder="Any dietary restrictions?" />
                 </SelectTrigger>
@@ -260,6 +304,7 @@ const OnboardingFlow = ({ onComplete }: { onComplete: (profile: UserProfile) => 
         );
 
       case 4:
+        // Step 4: Pantry & Budget
         return (
           <div className="space-y-6">
             <div className="space-y-2">
@@ -268,13 +313,13 @@ const OnboardingFlow = ({ onComplete }: { onComplete: (profile: UserProfile) => 
                 className="w-full p-3 border rounded-md min-h-24 resize-none"
                 id="pantry"
                 value={profile.pantryItems}
-                onChange={(e) => setProfile({...profile, pantryItems: e.target.value})}
+                onChange={(e) => setProfile({ ...profile, pantryItems: e.target.value })}
                 placeholder="Rice, chicken breast, onions, tomatoes, olive oil..."
               />
             </div>
             <div className="space-y-2">
               <Label>Time Per Meal</Label>
-              <Select onValueChange={(value) => setProfile({...profile, timePerMeal: value})}>
+              <Select onValueChange={(value) => setProfile({ ...profile, timePerMeal: value })}>
                 <SelectTrigger>
                   <SelectValue placeholder="How much time do you have for cooking?" />
                 </SelectTrigger>
@@ -287,23 +332,25 @@ const OnboardingFlow = ({ onComplete }: { onComplete: (profile: UserProfile) => 
             </div>
             <div className="space-y-2">
               <Label>Budget Level</Label>
-              <Select onValueChange={(value) => setProfile({...profile, budget: value})}>
+              <Select onValueChange={(value) => setProfile({ ...profile, budget: value })}>
                 <SelectTrigger>
                   <SelectValue placeholder="What's your grocery budget like?" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="low">Low (Budget-conscious)</SelectItem>
-                  <SelectItem value="medium">Medium (Moderate spending)</SelectItem>
-                  <SelectItem value="high">High (Premium ingredients)</SelectItem>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High</SelectItem>
                 </SelectContent>
               </Select>
             </div>
           </div>
         );
+
+      default:
+        return null;
     }
   };
 
-  const StepIcon = steps[step - 1].icon;
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
@@ -311,7 +358,7 @@ const OnboardingFlow = ({ onComplete }: { onComplete: (profile: UserProfile) => 
         <CardHeader className="text-center">
           <div className="flex justify-center items-center mb-4">
             <div className="bg-gradient-primary p-3 rounded-full">
-              <StepIcon className="w-8 h-8 text-white" />
+              {React.createElement(steps[step - 1].icon, { className: "w-8 h-8 text-white" })}
             </div>
           </div>
           <CardTitle className="text-2xl">{steps[step - 1].title}</CardTitle>
@@ -321,15 +368,14 @@ const OnboardingFlow = ({ onComplete }: { onComplete: (profile: UserProfile) => 
               {steps.map((_, index) => (
                 <div
                   key={index}
-                  className={`w-3 h-3 rounded-full ${
-                    index + 1 <= step ? 'bg-primary' : 'bg-muted'
-                  }`}
+                  className={`w-3 h-3 rounded-full ${index + 1 <= step ? 'bg-primary' : 'bg-muted'}`}
                 />
               ))}
             </div>
           </div>
         </CardHeader>
         <CardContent>
+          {/* renderStep() implementation remains same */}
           {renderStep()}
           <div className="flex justify-between mt-8">
             <Button

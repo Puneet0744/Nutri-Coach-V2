@@ -1,8 +1,19 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ChefHat, TrendingUp, Heart, Zap } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
-const Hero = ({ onGetStarted }: { onGetStarted: () => void }) => {
+const Hero = () => {
+  const navigate = useNavigate();
+
+  const handleSignUp = () => {
+    navigate("/signup"); // new signup route
+  };
+
+  const handleSignIn = () => {
+    navigate("/signin");
+  };
+
   return (
     <div className="min-h-screen bg-gradient-hero relative overflow-hidden">
       {/* Background Pattern */}
@@ -28,11 +39,18 @@ const Hero = ({ onGetStarted }: { onGetStarted: () => void }) => {
             track your progress, and achieve your health goals with intelligent coaching.
           </p>
           <Button 
-            onClick={onGetStarted}
+            onClick={handleSignUp}
             size="lg"
             className="bg-white text-food-orange hover:bg-white/90 shadow-glow px-8 py-6 text-lg font-semibold"
           >
             Start Your Journey
+          </Button>
+          <Button 
+            onClick={handleSignIn}
+            size="lg"
+            className="bg-white text-food-orange hover:bg-white/90 shadow-glow px-8 py-6 text-lg font-semibold"
+          >
+            Sign In
           </Button>
         </div>
 
