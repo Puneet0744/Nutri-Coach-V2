@@ -119,21 +119,52 @@ app.post('/api/recipes', authenticate, async (req, res) => {
 // ------------------------
 
 // GET dashboard for logged-in user
-app.get('/api/dashboard', authenticate, async (req, res) => {
+app.get("/api/dashboard", authenticate, async (req, res) => {
   try {
-    const { data, error } = await supabase
-      .from('dashboard')
-      .select('*')
-      .eq('user_id', req.user.id)
-      .single();
+    console.log("✅ /api/dashboard called");
+    console.log("req.user:", req.user);
 
-    if (error && error.code !== 'PGRST116') return res.status(400).json({ error: error.message });
-    res.json(data || { caloriesConsumed: 0, steps: 0, waterIntake: 0, sleep: 0, mood: 3 });
+    const { data, error } = await supabase
+      .from("dashboard")
+      .select("*")
+      .eq("user_id", req.user.id)
+      .maybeSingle();
+
+    if (error) return res.status(400).json({ error: error.message });
+
+    // ✅ If no record exists, create a default one automatically
+    if (!data) {
+      console.log("🆕 No dashboard found for user:", req.user.id, "- creating one...");
+
+      const { data: newData, error: insertError } = await supabase
+        .from("dashboard")
+        .insert([{
+          user_id: req.user.id,
+          caloriesconsumed: 0,
+          steps: 0,
+          waterintake: 0,
+          sleep: 0,
+          mood: 3,
+        }])
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error("❌ Insert error:", insertError);
+        return res.status(400).json({ error: insertError.message });
+      }
+
+      return res.json(newData);
+    }
+
+    // ✅ Otherwise return the existing record
+    res.json(data);
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: 'server error' });
+    res.status(500).json({ error: "server error" });
   }
 });
+
 
 // POST update dashboard for logged-in user
 app.post('/api/dashboard', authenticate, async (req, res) => {

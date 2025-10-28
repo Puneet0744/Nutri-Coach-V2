@@ -28,8 +28,7 @@ const SignIn = () => {
         return;
       }
 
-      // Save the access token somewhere (localStorage or context)
-      localStorage.setItem("supabase_token", data.session?.access_token || "");
+
 
       alert("Signed in successfully!");
       // Redirect to dashboard or load user profile
