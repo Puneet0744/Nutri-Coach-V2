@@ -30,7 +30,7 @@ export interface UserProfile {
 }
 
 // ✅ onComplete no longer passes the profile, just signals redirect
-const OnboardingFlow = ({ onComplete }: { onComplete: () => void }) => {
+const OnboardingFlow = ({ onComplete }: { onComplete: (profile: UserProfile) => void }) => {
   const location = useLocation();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -118,7 +118,8 @@ const OnboardingFlow = ({ onComplete }: { onComplete: () => void }) => {
         });
 
         // ✅ Call onComplete to redirect user to dashboard
-        onComplete();
+        // ✅ Call onComplete and pass the profile
+        onComplete(finalProfile);
       } catch (error) {
         console.error("Error saving profile:", error);
         toast({

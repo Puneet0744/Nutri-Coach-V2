@@ -1,11 +1,15 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { supabase } from "@/lib/supabaseClient"; // make sure you have a supabase client setup
+import { supabase } from "@/lib/supabaseClient";
 import { useNavigate } from "react-router-dom";
 
-const SignIn = () => {
-    const navigate = useNavigate();
+interface SignInProps {
+  onSignInSuccess?: () => void; // ✅ optional prop for Index.tsx integration
+}
+
+const SignIn = ({ onSignInSuccess }: SignInProps) => {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -28,11 +32,15 @@ const SignIn = () => {
         return;
       }
 
-
-
       alert("Signed in successfully!");
-      // Redirect to dashboard or load user profile
-      navigate("/dashboard")
+
+      // ✅ Case 1: Used inside Index.tsx → switch view
+      if (onSignInSuccess) {
+        onSignInSuccess();
+      } else {
+        // ✅ Case 2: Normal route-based navigation
+        navigate("/dashboard");
+      }
     } catch (err: any) {
       console.error(err);
       setErrorMessage("Something went wrong. Try again.");

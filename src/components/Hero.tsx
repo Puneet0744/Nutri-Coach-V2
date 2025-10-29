@@ -2,8 +2,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { ChefHat, TrendingUp, Heart, Zap } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
-const Hero = () => {
+interface HeroProps {
+  onGetStarted: () => void;
+}
+const Hero = ({ onGetStarted }: HeroProps) => {
   const navigate = useNavigate();
 
   const handleSignUp = () => {

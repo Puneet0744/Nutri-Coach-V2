@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import TopNavbar from "./TopNavbar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
+import { UserProfile as OnboardingProfile } from "./OnboardingFlow";
 import {
   Activity,
   Target,
@@ -18,26 +20,18 @@ import { supabase } from "@/lib/supabaseClient";
 
 const API_BASE_URL = "http://localhost:4000";
 
-interface UserProfile {
-  name: string;
-  age?: number;
-  sex?: string;
-  height?: number;
-  weight?: number;
-  activityLevel?: string;
-  goal?: string;
-  timeframe?: string;
-  cuisine?: string;
-  dietType?: string;
-  allergies?: string[];
-  pantryItems?: string;
-  timePerMeal?: string;
-  calorieTarget?: number;
+interface ExtendedUserProfile extends OnboardingProfile {
+  name?: string;
 }
+
+interface DashboardProps {
+  profile: ExtendedUserProfile;
+}
+
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [profile, setProfile] = useState<ExtendedUserProfile | null>(null);
   const [dailyData, setDailyData] = useState({
     caloriesConsumed: 0,
     steps: 0,
@@ -113,6 +107,7 @@ const Dashboard = () => {
     ["😢", "😕", "😐", "😊", "😄"][mood - 1] || "😐";
 
   return (
+    <>
     <div className="min-h-screen bg-background p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
@@ -308,6 +303,7 @@ const Dashboard = () => {
         </div>
       </div>
     </div>
+    </>
   );
 };
 
