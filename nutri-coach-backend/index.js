@@ -182,6 +182,79 @@ app.post('/api/dashboard', authenticate, async (req, res) => {
 });
 
 // ------------------------
+// MEALS Endpoints
+// ------------------------
+
+// GET all meals for logged-in user
+app.get('/api/meals', authenticate, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('meals')
+      .select('*')
+      .eq('user_id', req.user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) return res.status(400).json({ error: error.message });
+    res.json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'server error' });
+  }
+});
+
+// POST add new meal
+app.post('/api/meals', authenticate, async (req, res) => {
+  try {
+    const { meal_time, meal_name, calories, protein, carbs, fiber } = req.body;
+
+    if (!meal_time || !meal_name) {
+      return res.status(400).json({ error: 'meal_time and meal_name are required' });
+    }
+
+    const { data, error } = await supabase
+      .from('meals')
+      .insert([{
+        user_id: req.user.id,
+        meal_time,
+        meal_name,
+        calories: calories || 0,
+        protein: protein || 0,
+        carbs: carbs || 0,
+        fiber: fiber || 0,
+      }])
+      .select()
+      .single();
+
+    if (error) return res.status(400).json({ error: error.message });
+    res.status(201).json(data);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'server error' });
+  }
+});
+
+// DELETE meal by id
+app.delete('/api/meals/:id', authenticate, async (req, res) => {
+  try {
+    const mealId = req.params.id;
+    if (!mealId) return res.status(400).json({ error: 'Missing meal id' });
+
+    const { error } = await supabase
+      .from('meals')
+      .delete()
+      .eq('id', mealId)
+      .eq('user_id', req.user.id);
+
+    if (error) return res.status(400).json({ error: error.message });
+    res.json({ success: true });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'server error' });
+  }
+});
+
+
+// ------------------------
 // Start Server
 // ------------------------
 const PORT = process.env.PORT || 4000;
